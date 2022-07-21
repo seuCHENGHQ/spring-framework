@@ -555,6 +555,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		synchronized (this.startupShutdownMonitor) {
 			StartupStep contextRefresh = this.applicationStartup.start("spring.context.refresh");
 
+			// 把启动期的listener都保存一份
 			// Prepare this context for refreshing.
 			prepareRefresh();
 
@@ -695,7 +696,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
 
 		// Configure the bean factory with context callbacks.
+		// ApplicationContextAwareProcessor源码比较简单 进去看看就是bean可以通过实现一些特定接口 让spring将上下文之类的系统bean注入进去
 		beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+		// 这个接口的作用是 忽略实现了这些接口的bean 的set方法的自动注入
+		// 举个栗子 比如A.class实现了ApplicationContextAware接口 那么beanFactory在将A构造为bean的时候 不会调用setApplicationContext方法注入ApplicationContext
+		// spring会通过别的方式 比如ApplicationContextAwareProcessor来为A的bean 注入applicationContext属性
 		beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
 		beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
 		beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);
