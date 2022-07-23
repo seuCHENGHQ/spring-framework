@@ -638,7 +638,13 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				 * 实例化所有非lazy的单例bean!!!
 				 * 这里的代码非常重要 要仔细看看是怎么从beanDefinition -> bean的!!!
 				 *
+				 * bean的实例化
+				 * bean循环依赖的处理
+				 * autowired的注入
+				 * beanPostProcessor的调用
+				 * bean销毁方法的注册
 				 *
+				 * 都在这个方法里面做了 可以说相当核心了
 				 *
 				 */
 				// Instantiate all remaining (non-lazy-init) singletons.
