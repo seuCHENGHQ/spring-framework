@@ -256,6 +256,12 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					}
 					afterSingletonCreation(beanName);
 				}
+				/**
+				 * 对于新创建的singletonBean
+				 * 将其加入到org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#singletonObjects
+				 * 如果用户选择了支持bean循环依赖
+				 * 那么还会将bean从org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#earlySingletonObjects删除掉
+				 */
 				if (newSingleton) {
 					addSingleton(beanName, singletonObject);
 				}

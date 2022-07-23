@@ -260,6 +260,12 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 		}
 
 		else {
+			/**
+			 * 对于不是启动时期实例化的bean 比如我们代码中的大部分bean和SpringBoot应用的启动类
+			 * 他们在走到这里的时候sharedInstance都是null
+			 *
+			 * 那么就会走这边来进行实例化
+			 */
 			// Fail if we're already creating this bean instance:
 			// We're assumably within a circular reference.
 			if (isPrototypeCurrentlyInCreation(beanName)) {
@@ -297,9 +303,15 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 				if (requiredType != null) {
 					beanCreation.tag("beanType", requiredType::toString);
 				}
+				/**
+				 * 拿到beanDefinition
+				 */
 				RootBeanDefinition mbd = getMergedLocalBeanDefinition(beanName);
 				checkMergedBeanDefinition(mbd, beanName, args);
 
+				/**
+				 * 看看有没有依赖的其他bean 如果有的话就先初始化dependOn的这些bean
+				 */
 				// Guarantee initialization of beans that the current bean depends on.
 				String[] dependsOn = mbd.getDependsOn();
 				if (dependsOn != null) {
@@ -319,8 +331,22 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 					}
 				}
 
+				/**
+				 * dependOn的bean初始化完了 该初始化bean自己了
+				 *
+				 * 根据bean的模式来执行不同的加载策略
+				 * 因为doGetBean这段代码是要复用的 因此这里通过if else来做不同的操作
+				 *
+				 * spring应用启动时只会实例化singleton的bean
+				 *
+				 */
 				// Create bean instance.
 				if (mbd.isSingleton()) {
+					/**
+					 * getSingleton封装了一个保证线程安全的实例化框架
+					 * 而真正的实例化操作 需要业务方来提供singletonFactory来自行实现
+					 * 这里是通过lambda来做的
+					 */
 					sharedInstance = getSingleton(beanName, () -> {
 						try {
 							return createBean(beanName, mbd, args);
@@ -333,6 +359,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 							throw ex;
 						}
 					});
+					// 如果不是factoryBean的话 这个方法就没啥作用
 					beanInstance = getObjectForBeanInstance(sharedInstance, name, beanName, mbd);
 				}
 
@@ -386,6 +413,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 			}
 		}
 
+		// 最后看看bean的类型需不需要转换 不过大部分都不需要转换?? 什么场景才会需要转换呢
 		return adaptBeanInstance(name, beanInstance, requiredType);
 	}
 

@@ -300,6 +300,13 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 	}
 
 	private InjectionMetadata findInjectionMetadata(String beanName, Class<?> beanType, RootBeanDefinition beanDefinition) {
+		/**
+		 * findAutowiringMetadata会拿到beanType中所有Autowired注解
+		 * 然后找到需要注入的属性值
+		 * 构造为InjectedElement 放入InjectionMetadata队列中
+		 * 后面如果要注入的话 调一下InjectedElement.inject方法进行注入即可
+		 * 注入也是通过ReflectionUtils 反射来对filed进行赋值的
+		 */
 		InjectionMetadata metadata = findAutowiringMetadata(beanName, beanType, null);
 		metadata.checkConfigMembers(beanDefinition);
 		return metadata;

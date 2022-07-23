@@ -559,36 +559,88 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			// Prepare this context for refreshing.
 			prepareRefresh();
 
+			// 默认使用DefaultListableBeanFactory
 			// Tell the subclass to refresh the internal bean factory.
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
+			/**
+			 * 指定classLoader
+			 * spel表达式解析器
+			 * 忽略某些接口实现类的自动装配
+			 * 指定beanFactory等接口的注入实现类
+			 */
 			// Prepare the bean factory for use in this context.
 			prepareBeanFactory(beanFactory);
 
 			try {
+				/**
+				 * 一个扩展接口 允许AbstractApplicationContext对beanFactory做一些额外的后处理
+				 */
 				// Allows post-processing of the bean factory in context subclasses.
 				postProcessBeanFactory(beanFactory);
 
 				StartupStep beanPostProcess = this.applicationStartup.start("spring.context.beans.post-process");
+
+				/**
+				 * 主要是对BeanDefinitionRegistryPostProcessor & BeanFactoryPostProcessor的调用
+				 * 其中ConfigurationClassPostProcessor完成了对basePackage的扫描 将被注解过的class扫描出来 并加载为beanDefinition
+				 *
+				 * Q:
+				 * 有一个问题 beanFactory是如何通过org.springframework.context.annotation.internalConfigurationAnnotationProcessor
+				 * 把ConfigurationClassPostProcessor加载出来的???
+				 *
+				 * A:
+				 * 在ApplicationContext.createApplicationContext执行过程中 向上下文的ioc容器中 通过AnnotationUtils注册了
+				 * "org.springframework.context.annotation.internalConfigurationAnnotationProcessor" = ConfigurationClassPostProcessor.class;
+				 * ConfigurationClassPostProcessor是扫描basePackage 将class转换为beanDefinition的类 非常重要
+				 *
+				 * ConfigurationClassPostProcessor会在invokeBeanFactoryPostProcessors方法中被回调 实现class -> beanDefinition的转换
+				 *
+				 * ConfigurationClassPostProcessor的代码要好好看一看 主要是doScan方法!!!
+				 */
 				// Invoke factory processors registered as beans in the context.
 				invokeBeanFactoryPostProcessors(beanFactory);
 
+				/**
+				 * 这里将beanPostProcessors按照优先级顺序 注册到beanFactory.beanPostProcessors队列中
+				 */
 				// Register bean processors that intercept bean creation.
 				registerBeanPostProcessors(beanFactory);
 				beanPostProcess.end();
 
+				/**
+				 * 国际化相关代码 可以先忽略 以后用的时候再研究
+				 */
 				// Initialize message source for this context.
 				initMessageSource();
 
+				/**
+				 * 初始化时间发布器和监听器
+				 * 可以通过继承ApplicationEvent来自定义一个事件
+				 * 通过实现ApplicationListener来实现一个自定义事件监听器 也可以通过@EventListener的方式来实现一个自定义事件监听器
+				 */
 				// Initialize event multicaster for this context.
 				initApplicationEventMulticaster();
 
+				/**
+				 * 一个扩展接口 子类做一些个性化操作
+				 */
 				// Initialize other special beans in specific context subclasses.
 				onRefresh();
 
+				/**
+				 * 这里将spring.factories的监听器和用户自己实现的监听器进行注册
+				 */
 				// Check for listener beans and register them.
 				registerListeners();
 
+				/**
+				 * 实例化所有非lazy的单例bean!!!
+				 * 这里的代码非常重要 要仔细看看是怎么从beanDefinition -> bean的!!!
+				 *
+				 *
+				 *
+				 */
 				// Instantiate all remaining (non-lazy-init) singletons.
 				finishBeanFactoryInitialization(beanFactory);
 
@@ -691,8 +743,11 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		// Tell the internal bean factory to use the context's class loader etc.
 		beanFactory.setBeanClassLoader(getClassLoader());
 		if (!shouldIgnoreSpel) {
+			// 这里是注册SpringEL表达式解析器 (SpEL) 比如通过@Value("#{b.age}")获取ioc容器中b对象age属性的值 具体参考一下spel的文档
 			beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
 		}
+		// 属性编辑器注册商 我们可以通过自定义属性编辑器 并注册到这里 来实现一些个性化数据的解析 比如一个bean的Date属性要注入 但是xml里又只能指定string类型
+		// 那么属性编辑器就可以帮助我们在注入时 实现string到Date类型的转换
 		beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
 
 		// Configure the bean factory with context callbacks.
@@ -709,6 +764,14 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		beanFactory.ignoreDependencyInterface(ApplicationContextAware.class);
 		beanFactory.ignoreDependencyInterface(ApplicationStartupAware.class);
 
+		/**
+		 * 如果ioc容器中 有很多个bean都实现了BeanFactory接口 那么在需要注入BeanFactory实现的地方 spring就不知道要注入哪个了
+		 * 为了解决这种问题 spring提供了很多个解决方案
+		 *
+		 * 1. 通过@Qualifier注解来指明需要注入哪个bean
+		 * 2. 在某个bean实现上标记@Primary注解 在冲突时首选有标记的bean
+		 * 3. 通过下面这种方式 指定某些接口的实现类
+		 */
 		// BeanFactory interface not registered as resolvable type in a plain factory.
 		// MessageSource registered (and found for autowiring) as a bean.
 		beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
@@ -716,9 +779,18 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);
 		beanFactory.registerResolvableDependency(ApplicationContext.class, this);
 
+		/**
+		 * ApplicationListenerDetector 是用来处理用户自定义ApplicationListener实现的
+		 * ApplicationListener
+		 * 如果用户有一个ApplicationListener实现 在该Bean初始化完成后 会加入到ApplicationContext的applicationListeners中
+		 * 在该bean被销毁之前 会从ApplicationContext.applicationEventMulticaster中移除
+		 */
 		// Register early post-processor for detecting inner beans as ApplicationListeners.
 		beanFactory.addBeanPostProcessor(new ApplicationListenerDetector(this));
 
+		/**
+		 * LoadTimeWeaver 通过java agent 织入插桩代码用的
+		 */
 		// Detect a LoadTimeWeaver and prepare for weaving, if found.
 		if (!NativeDetector.inNativeImage() && beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {
 			beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));
@@ -874,11 +946,19 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * Doesn't affect other listeners, which can be added without being beans.
 	 */
 	protected void registerListeners() {
+		/**
+		 * 在spring.factories文件里面指定了一些listener
+		 * 这里先把他们注册上
+		 */
 		// Register statically specified listeners first.
 		for (ApplicationListener<?> listener : getApplicationListeners()) {
 			getApplicationEventMulticaster().addApplicationListener(listener);
 		}
 
+		/**
+		 * 因为前面已经将所有的BeanDefinition都扫描进来了
+		 * 所以这里对用户自己的listener进行实例化 + 注册
+		 */
 		// Do not initialize FactoryBeans here: We need to leave all regular beans
 		// uninitialized to let post-processors apply to them!
 		String[] listenerBeanNames = getBeanNamesForType(ApplicationListener.class, true, false);
@@ -886,6 +966,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			getApplicationEventMulticaster().addApplicationListenerBean(listenerBeanName);
 		}
 
+		// TODO 在启动时这里会有什么event需要发布呢?
 		// Publish early application events now that we finally have a multicaster...
 		Set<ApplicationEvent> earlyEventsToProcess = this.earlyApplicationEvents;
 		this.earlyApplicationEvents = null;
@@ -901,6 +982,10 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * initializing all remaining singleton beans.
 	 */
 	protected void finishBeanFactoryInitialization(ConfigurableListableBeanFactory beanFactory) {
+		/**
+		 * 可以看看ConversionService的接口定义
+		 * 作用是将一种类型转换为另一种类型 比如String类型的日期转换为Date
+		 */
 		// Initialize conversion service for this context.
 		if (beanFactory.containsBean(CONVERSION_SERVICE_BEAN_NAME) &&
 				beanFactory.isTypeMatch(CONVERSION_SERVICE_BEAN_NAME, ConversionService.class)) {
@@ -915,6 +1000,9 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			beanFactory.addEmbeddedValueResolver(strVal -> getEnvironment().resolvePlaceholders(strVal));
 		}
 
+		/**
+		 * 看看有没有加载时代码插桩的需求 默认是没有的
+		 */
 		// Initialize LoadTimeWeaverAware beans early to allow for registering their transformers early.
 		String[] weaverAwareNames = beanFactory.getBeanNamesForType(LoadTimeWeaverAware.class, false, false);
 		for (String weaverAwareName : weaverAwareNames) {
@@ -924,9 +1012,15 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		// Stop using the temporary ClassLoader for type matching.
 		beanFactory.setTempClassLoader(null);
 
+		/**
+		 * 冻结所有的beanDefinition 要准备开始实例化了
+		 */
 		// Allow for caching all bean definition metadata, not expecting further changes.
 		beanFactory.freezeConfiguration();
 
+		/**
+		 * 实例化看这里
+		 */
 		// Instantiate all remaining (non-lazy-init) singletons.
 		beanFactory.preInstantiateSingletons();
 	}
