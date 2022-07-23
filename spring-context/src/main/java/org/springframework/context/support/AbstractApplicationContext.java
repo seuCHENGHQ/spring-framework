@@ -624,6 +624,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 				/**
 				 * 一个扩展接口 子类做一些个性化操作
+				 *
+				 * SpringBoot通过重载这个接口 把内嵌的tomcat 或者 jetty启动起来了!!!!
 				 */
 				// Initialize other special beans in specific context subclasses.
 				onRefresh();
