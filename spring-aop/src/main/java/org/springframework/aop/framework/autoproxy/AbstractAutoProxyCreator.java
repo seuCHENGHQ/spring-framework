@@ -477,6 +477,13 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 		if (classLoader instanceof SmartClassLoader && classLoader != beanClass.getClassLoader()) {
 			classLoader = ((SmartClassLoader) classLoader).getOriginalClassLoader();
 		}
+
+		/**
+		 * 这里代码跟进去看
+		 * 可以看到会根据被代理类是否实现了接口 来决定使用哪种代理方式
+		 * 如果被代理对象实现了接口 那么使用jdk代理
+		 * 否则使用cglib进行代理
+		 */
 		return proxyFactory.getProxy(classLoader);
 	}
 
