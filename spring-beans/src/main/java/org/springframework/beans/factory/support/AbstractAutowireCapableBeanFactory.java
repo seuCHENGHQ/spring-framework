@@ -616,6 +616,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			populateBean(beanName, mbd, instanceWrapper);
 			/**
 			 * beanPostProcessors是在initializeBean这个方法里被调用的
+			 *
+			 * 注意!!!
+			 * 这里有个很重要的功能
+			 * Spring的AOP 给bean创建代理类 就是在这里实现的!!!
 			 */
 			exposedObject = initializeBean(beanName, exposedObject, mbd);
 		}
@@ -1785,6 +1789,13 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			throw new BeanCreationException(
 					(mbd != null ? mbd.getResourceDescription() : null), beanName, ex.getMessage(), ex);
 		}
+		/**
+		 * applyBeanPostProcessorsAfterInitialization 会调用所有beanPostProcessor
+		 * 其中有一个AbstractAutoProxyCreator的实现类 InfrastructureAdvisorAutoProxyCreator
+		 * 会调用wrapIfNecessary -> createProxy方法上
+		 * 来给bean创建代理 这个代理对象会被注册到ioc容器中 后面通过getBean获取到的 也都是这个代理类的对象了
+		 * 所以debug的时候 会发现某些类的class是一个被增强过的类 而非原始的class对象
+		 */
 		if (mbd == null || !mbd.isSynthetic()) {
 			wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
 		}
